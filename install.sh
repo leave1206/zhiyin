@@ -33,10 +33,18 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 [[ "$(uname -s)" == "Darwin" ]] || fail "macOS only. Detected: $(uname -s)"
-[[ "$(uname -m)" == "arm64" ]] || fail "Apple Silicon only. Detected: $(uname -m)"
 [[ "$(id -u)" != "0" ]] || fail "Do not run as root."
 
-info "Preflight checks passed"
+ARCH="$(uname -m)"
+IS_ARM=$([[ "$ARCH" == "arm64" ]] && echo true || echo false)
+if $IS_ARM; then
+    BREW_PREFIX="/opt/homebrew"
+else
+    BREW_PREFIX="/usr/local"
+    warn "Intel Mac detected. Performance may be slower than Apple Silicon."
+fi
+
+info "Preflight checks passed ($ARCH)"
 
 # ─────────────────────────────────────
 # Phase 1: Dependencies
@@ -57,9 +65,9 @@ if ! command -v rec &>/dev/null; then
 fi
 ok "sox (audio recording)"
 
-# Python — find or install arm64 python3
+# Python — find or install
 PYTHON=""
-for p in /opt/homebrew/bin/python3 /usr/local/bin/python3 /usr/bin/python3; do
+for p in "$BREW_PREFIX/bin/python3" /usr/local/bin/python3 /opt/homebrew/bin/python3 /usr/bin/python3; do
     if [ -x "$p" ]; then
         PYTHON="$p"
         break
@@ -68,7 +76,7 @@ done
 if [ -z "$PYTHON" ]; then
     info "Installing Python..."
     brew install python@3.12 > /dev/null 2>&1
-    PYTHON="/opt/homebrew/bin/python3"
+    PYTHON="$BREW_PREFIX/bin/python3"
 fi
 ok "Python ($PYTHON)"
 
@@ -79,9 +87,13 @@ info "Setting up Python environment..."
 mkdir -p "$ZHIYIN_DIR"
 
 if [ ! -f "$ZHIYIN_DIR/venv/bin/python3" ]; then
-    arch -arm64 "$PYTHON" -m venv "$ZHIYIN_DIR/venv"
+    if $IS_ARM; then
+        arch -arm64 "$PYTHON" -m venv "$ZHIYIN_DIR/venv"
+    else
+        "$PYTHON" -m venv "$ZHIYIN_DIR/venv"
+    fi
 fi
-ok "Python venv (arm64)"
+ok "Python venv ($ARCH)"
 
 VENV_PIP="$ZHIYIN_DIR/venv/bin/pip"
 VENV_PYTHON="$ZHIYIN_DIR/venv/bin/python3"
@@ -158,7 +170,7 @@ swiftc -O -o "$APP_DIR/Contents/MacOS/zhiyin" \
     # Fallback: write a simple toggle script instead
     cat > "$APP_DIR/Contents/MacOS/zhiyin" << 'FALLBACK'
 #!/bin/bash
-export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+export PATH="/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin"
 export HOME="__HOME__"
 cd /tmp
 VOICE_DIR="$HOME/.zhiyin"
