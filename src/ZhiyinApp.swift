@@ -93,7 +93,8 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Use shell to launch rec with nohup (keeps recording alive)
         let logFile = zhiyinDir + "/voice.log"
         let pidFile = zhiyinDir + "/rec.pid"
-        let shellCmd = "nohup /opt/homebrew/bin/rec -q '\(wavFile)' >> '\(logFile)' 2>&1 & echo $! > '\(pidFile)'"
+        // Find rec in PATH (works for both /opt/homebrew and /usr/local)
+        let shellCmd = "export PATH=/opt/homebrew/bin:/usr/local/bin:$PATH; nohup rec -q '\(wavFile)' >> '\(logFile)' 2>&1 & echo $! > '\(pidFile)'"
 
         let task = Process()
         task.executableURL = URL(fileURLWithPath: "/bin/bash")
@@ -224,7 +225,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(NSMenuItem(title: "zhiyin 知音 — Offline Voice Input", action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
 
-        let toggleItem = NSMenuItem(title: "Toggle Recording (Fn)", action: #selector(menuToggle), keyEquivalent: "")
+        let hotkey = readConfig("HOTKEY") ?? "right_cmd"
+        let hotkeyLabel = hotkey == "right_cmd" ? "Right ⌘" : hotkey.uppercased()
+        let toggleItem = NSMenuItem(title: "Toggle Recording (\(hotkeyLabel))", action: #selector(menuToggle), keyEquivalent: "")
         toggleItem.target = self
         menu.addItem(toggleItem)
 

@@ -87,7 +87,7 @@ VENV_PIP="$ZHIYIN_DIR/venv/bin/pip"
 VENV_PYTHON="$ZHIYIN_DIR/venv/bin/python3"
 
 # Install Python packages
-"$VENV_PIP" install -q sherpa-onnx numpy 2>/dev/null
+"$VENV_PIP" install -q sherpa-onnx numpy || fail "Failed to install Python packages"
 ok "sherpa-onnx + numpy"
 
 # ─────────────────────────────────────
@@ -117,8 +117,8 @@ fi
 info "Installing application..."
 
 # Download source files from repo (or copy if running from cloned repo)
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" && pwd)"
-if [ -f "$SCRIPT_DIR/src/transcribe.py" ]; then
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]:-$0}")" 2>/dev/null && pwd || echo "")"
+if [ -n "$SCRIPT_DIR" ] && [ -f "$SCRIPT_DIR/src/transcribe.py" ]; then
     # Running from cloned repo
     cp "$SCRIPT_DIR/src/transcribe.py" "$ZHIYIN_DIR/transcribe.py"
     SWIFT_SRC="$SCRIPT_DIR/src/ZhiyinApp.swift"
@@ -141,8 +141,16 @@ APP_DIR="$ZHIYIN_DIR/Zhiyin.app"
 mkdir -p "$APP_DIR/Contents/MacOS"
 mkdir -p "$APP_DIR/Contents/Resources"
 
+# Create log file (needed before first run)
+touch "$ZHIYIN_DIR/voice.log"
+
 # Compile Swift menubar app
 info "Compiling Zhiyin.app..."
+if ! command -v swiftc &>/dev/null; then
+    warn "Xcode Command Line Tools not found. Installing..."
+    xcode-select --install 2>/dev/null || true
+    warn "Please run install.sh again after Xcode CLT finishes installing."
+fi
 swiftc -O -o "$APP_DIR/Contents/MacOS/zhiyin" \
     -framework Cocoa -framework Carbon \
     "$SWIFT_SRC" 2>/dev/null || {
@@ -269,13 +277,13 @@ case "${1:-help}" in
   log)        tail -20 "$ZHIYIN_DIR/voice.log" ;;
   uninstall)  bash "$ZHIYIN_DIR/uninstall.sh" ;;
   status)     pgrep -x zhiyin >/dev/null && echo "🎤 Running" || echo "💤 Not running" ;;
-  start)      nohup "$ZHIYIN_DIR/Zhiyin.app/Contents/MacOS/zhiyin" > /dev/null 2>&1 &; echo "Started" ;;
+  start)      nohup "$ZHIYIN_DIR/Zhiyin.app/Contents/MacOS/zhiyin" > /dev/null 2>&1 & echo "Started" ;;
   stop)       pkill -x zhiyin 2>/dev/null; echo "Stopped" ;;
   *)
     echo "zhiyin 知音 — Offline Chinese Voice Input"
     echo ""
     echo "Usage:"
-    echo "  Press Fn key    Start/stop recording (auto-transcribe)"
+    echo "  Press Right Cmd  Start/stop recording (auto-transcribe)"
     echo ""
     echo "Commands:"
     echo "  zhiyin status     Check if running"
